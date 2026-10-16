@@ -129,8 +129,8 @@ def plot(windows, path: Path) -> None:
     ax.text(
         0,
         1.02,
-        "Average delay per line, 2-minute windows, seconds late, Helsinki time. "
-        "Synthetic sample, 30 trams, run through the Spark job's transformations.",
+        "Average delay per line in 2-minute windows, seconds late, Helsinki time. "
+        "Synthetic sample, 30 trams.",
         transform=ax.transAxes,
         fontsize=9.5,
         color=INK_2,
