@@ -1,0 +1,18 @@
+apiVersion: 1
+datasources:
+  - name: hsl-postgres
+    uid: hsl-postgres
+    type: grafana-postgresql-datasource
+    url: postgres:5432
+    user: hsl
+    secureJsonData:
+      password: hsl
+    jsonData:
+      database: hsl
+      sslmode: disable
+      postgresVersion: 1600
+    isDefault: true
+  - name: prometheus
+    uid: hsl-prometheus
+    type: prometheus
+    url: http://prometheus:9090
