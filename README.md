@@ -1,7 +1,7 @@
 # Helsinki Transit Real-Time Delay Pipeline
 
 ![ci](https://github.com/HaiNguyen-python/hsl-realtime-pipeline/actions/workflows/ci.yml/badge.svg)
-![python](https://img.shields.io/badge/python-3.10%2B-blue)
+![python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)
 ![types](https://img.shields.io/badge/types-mypy-informational)
 
