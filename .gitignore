@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+data/bronze/
+data/checkpoints/
+data/recordings/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+spark-warehouse/
+metastore_db/
+derby.log
+data/sample/*.jsonl

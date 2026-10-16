@@ -1,0 +1,99 @@
+# make up            -> synthetic sample replayed into the pipeline (profile "replay")
+# make up-live       -> real HSL feed from mqtt.hsl.fi (profile "live")
+# Grafana:          http://localhost:3000  (dashboard "HSL real-time delays", login admin/admin)
+# Redpanda Console: http://localhost:8080  (topics, consumer lag, dead-letter messages)
+# Prometheus:       http://localhost:9090  (producer metrics: message rate, DLQ rate, event lag)
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda start
+      - --smp 1
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --mode dev-container
+    ports: ["19092:19092"]
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 5s
+      retries: 20
+
+  topics:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    depends_on: { redpanda: { condition: service_healthy } }
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        rpk -X brokers=redpanda:9092 topic create hsl.vehicle_positions -p 6 -r 1 || true;
+        rpk -X brokers=redpanda:9092 topic create hsl.vehicle_positions.dlq -p 1 -r 1 || true
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:v2.7.2
+    depends_on: [redpanda]
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports: ["8080:8080"]
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: hsl
+      POSTGRES_PASSWORD: hsl
+      POSTGRES_DB: hsl
+    ports: ["5432:5432"]
+    volumes:
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+
+  spark:
+    build: { context: ., dockerfile: docker/spark.Dockerfile }
+    depends_on:
+      topics: { condition: service_completed_successfully }
+      postgres: { condition: service_started }
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+      POSTGRES_DSN: postgresql://hsl:hsl@postgres:5432/hsl
+      BRONZE_PATH: /data/bronze/positions
+      CHECKPOINT_DIR: /data/checkpoints
+    volumes: [lake:/data]
+    command:
+      - /opt/spark/bin/spark-submit
+      - --packages
+      - org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy
+      - /opt/app/jobs/run_streaming.py
+
+  replay:
+    build: .
+    depends_on: { topics: { condition: service_completed_successfully } }
+    environment: { KAFKA_BOOTSTRAP: "redpanda:9092" }
+    command: ["sh", "-c", "hsl-sample --out /tmp/sample.jsonl && hsl-replay /tmp/sample.jsonl --speed 10 --loop"]
+    expose: ["9108"]
+    profiles: ["replay"]
+
+  producer:
+    build: .
+    depends_on: { topics: { condition: service_completed_successfully } }
+    environment: { KAFKA_BOOTSTRAP: "redpanda:9092" }
+    command: ["hsl-producer"]
+    expose: ["9108"]
+    profiles: ["live"]
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    depends_on: [postgres, prometheus]
+    ports: ["3000:3000"]
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  pgdata:
+  lake:

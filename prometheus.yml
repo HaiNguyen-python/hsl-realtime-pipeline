@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Whichever of the two is running (replay profile or live profile) gets scraped.
+  - job_name: hsl-producer
+    static_configs:
+      - targets: ["replay:9108", "producer:9108"]
